@@ -1,0 +1,338 @@
+---
+title: "E. turcicum x flutriafol model selection and analysis"
+author: "Austin McCoy"
+date: "1/11/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+
+
+
+# These scripts were originally made by Dr. Mikaela Breunig and Dr. Zachary Noel for use in a Fusarium x Adepidyn fungicide sensitivity study. Here, we are using these scripts to determine the best model choice for a Exserohilum turcicum (Syn = Setosphaeria turcicum) and flutriafol fungicide study
+
+##Model Selection Script for Baseline Sensitivity of Pydiflumetofen for MYCELIAL GROWTH data
+
+```{r}
+rm(list = ls(all=TRUE)) 
+options(scipen = 999) 
+```
+
+function to check, then load any packages that we desire
+```{r, eval=FALSE}
+
+packages <- c("broom","stringr", "tidyverse","ggplot2", "drc","lattice","car", "lme4", "lsmeans", "plyr", "plotrix", "knitr", "ggplot2", "lmtest", "lmerTest", "Rmisc", "gridExtra", "plotly", "webshot", "ggpmisc", "ggsci","scales", "readxl")
+
+lapply(packages, library, character.only=TRUE)
+
+```
+
+Loading in raw data to restructure into R-friendly format
+```{r}
+raw_data <- read_excel("E. turcicum flutriafol sensitivity data for Austin_batch_rep.xlsx")
+```
+
+Restructuring data
+```{r}
+data_long <- gather(raw_data, ppm, diameter, '0 ug/ml':'100 ug/ml', factor_key = TRUE) # changing the data to long format instead of wide format
+
+raw_data_long <- select(data_long, select = -c(EC50)) # removing the EC50 column from this long data set, we will calculate new ones further down with a model that works best for the isolates fungicide x growth interaction
+
+raw_data_long$ppm <- gsub(pattern = " ug/ml", replacement = "", x = raw_data_long$ppm) # getting rid of " ug/ml" suffix, so that data will be able to read as numeric. important for EC50 calculations
+
+raw_data_long$isolate <- paste0('ET', raw_data_long$isolate) #adding the prefix "ET" for Exserohilum turcicum, "drc" package doesnt like isolate names that start with a number. so we just add the character prefix here. Otherwise, isolates names are as they were given to me, we can remove this prefix later if we prefer by using the "gsub" function as seen above.
+
+raw_data_long # here is the new data structure and isolate names
+```
+
+Loading in the data
+```{r}
+
+IsolateData<-unique(raw_data_long$isolate) # 81 unique isolates, just figuring out how many isolates were tested, this does not show how many times each was tested
+
+IsolateData
+
+
+```
+
+process data to go from raw diameters to a relative growth for each isolate
+we are assuming that the plug diameter has already been subtracted from the growth of each isolate as there are 0's in the dataset already
+```{r}
+turcicum_flutriafol <- raw_data_long %>% # dataset we are using
+  group_by(isolate, batch) %>% # grouping them by isolate and batch tested, so each instance an isolate was tested will be summarised here
+  mutate(avgC=mean(diameter[ppm==0])) %>% # Mean diameter of each isolate at 0ppm, used to calculate relative growth on next line
+  mutate(relative_growth=round(diameter/avgC, digits=3)) # gives us the relative growth (relative to the 0ppm control) of each isolate, relative to the 0ppm control, down to the 3rd decimal point. Rounding to 3 decimal points was needed so that EC50 calculations could converge later on, prior there were 10-20 decimal points of data and the models could not converge
+```
+
+```{r}
+turcicum_flutriafol[turcicum_flutriafol <0] <- 0 ## removing negative relative growth values and replacing them with 0
+
+turcicum_flutriafol$isolate <- as.factor(turcicum_flutriafol$isolate) #sets as factor
+
+turcicum_flutriafol$ppm <- as.numeric(turcicum_flutriafol$ppm)
+
+turcicum_flutriafol
+
+```
+
+dose response curve
+```{r}
+#### Crude Dose Response Curves #####
+
+#turcicum_flutriafol$relative_growth <- as.numeric(turcicum_flutriafol$relative_growth)
+
+turcicum_flutriafol$isolatexbatch <- interaction(turcicum_flutriafol$isolate, turcicum_flutriafol$batch, drop = TRUE) # this will add an additional column that is a unique identifier for each isolate x batch testing that was done. we can then use this to run our model selection and analysis on each isolate testing individually to look for growth differences across batches.
+
+crude_drc_etrucicum <- ggplot(turcicum_flutriafol,aes(x = as.factor(ppm), y = relative_growth)) +
+  stat_summary(fun=mean,position=position_dodge(width=0.95), geom="point") +
+  #geom_line() +
+  stat_smooth(method = "loess", se = FALSE, color = "black") +
+  #scale_fill_manual(values=wes_palette(n=4, name="Moonrise2")) +
+  stat_summary(fun.data = mean_se,position=position_dodge(width=0.95), geom = "errorbar", col= "#4d4d4d") +
+  theme_gray() +
+  facet_wrap(~isolatexbatch, ncol = 6)+
+  guides(fill = FALSE) +
+  ## scale_fill_manual(values = col[1:2]) +
+  theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
+        axis.text.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.x = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.line.x = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        axis.line.y = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        legend.text = element_text(size = 10, face = "bold", family = "serif"),
+        legend.key = element_blank(),
+        legend.title = element_text(size = 10, face="bold", family = "serif"),
+        legend.position = "right",
+        strip.text.x = element_text(size = 10, face = "bold", family = "serif"),
+        title = element_text(size = 16, family = "serif")) +
+  #scale_x_continuous(breaks=c(0, 0.00001, 0.0001, 0.005, 0.01, 1, 10, 50)) +
+  ylim(0,2.50) +
+  ggtitle("Dose Response Curves") +
+  xlab("Concentration ") + ylab("Relative Growth")
+
+crude_drc_etrucicum # this will be hard to see, so use the line of code below to save this document in high-resolution to your working directory
+
+# you can use this next line to save this figure to your project directory (usually the folder that contains the .rmd and project R files)
+ggsave("crude dose response curves E.turcicum.png", plot=crude_drc_etrucicum, width=20, height=16, dpi = 600)
+
+```
+
+# It looks like we have 4 isolates which were notably resistant and we will likely not be able to determine an EC50 for them, or will need to use a significantly different model to do so. Here we will remove those isolate from the dataset for now
+
+```{r}
+# These isolates were notably resistant, or have some odd crude dose response curves, so we are removing them for now so they dont skew model testing for the other isolates
+turcicum_flutriafol_nonegative <- turcicum_flutriafol %>%
+  filter(isolatexbatch!="ET20KY6.8") %>%
+  filter(isolatexbatch!="ET20IA2.9") %>%
+  filter(isolatexbatch!="ET20IN16.9") %>%
+  filter(isolatexbatch!="ET20FL4.10") %>%
+  filter(isolatexbatch!="ET20MS4.11") %>%
+  filter(isolatexbatch!="ET20IN53.7") %>%
+  filter(isolatexbatch!="ET20IN65.12") %>%
+  filter(isolatexbatch!="ET20FL8.13") %>% 
+  filter(isolatexbatch!="ET20IA1.5")
+
+```
+
+Make a list of models to test here
+
+We tested 3 different log-logistic models and 3 hormetic models on this dataset to find the best fit for these isolate x fungicide interactions. Below is information on each model tested:
+```{r}
+#func.list , would add any additional models here, their position becomes their number in the next step 
+func.list <- list(LL.2(), LL.3(), LL.4(), BC.4(), CRS.4c(), W2.4())
+
+# LL.2 = Two-parameter log-logistic model (Symmetric) - lower limit at 0, upper limit 1
+# LL.3 = Three-parameter log-logistic model (Symmetric) - lower limit at 0
+# LL.4 = Four-parameter log-logistic model (Symmetric) - upper limit at 1
+# BC.4 = Brain and Cousens (Asymmetric - hormetic) - lower limit fixed at 0
+# CRS.4c = Four-parameter Cedergreen-Ritz-Streibig (Asymmetric - hormetic) - lower limit 0
+# W2.4 = Four-parameter Weibull2 (Asymmetric) type 2, lower limit at 0, upper limit at 1
+
+# These were the models tested in Noel et al 2018 "Significant Influence of EC50 Estimation by Model Choice and EC50 Type" for Pythium oopapillum and Fusarium virguliforme. 
+
+#There are more models we can test, but these should cover everything, if not ill add more and test again. We will likely go with one model for all isolates, unless there is a significant subset that needs a different model (i.e. hormesis, some symmetric and other asymmetric, etc)
+
+# Symmetric = there is symmetry around an inflection point (EC50)
+# Asymmetric = flexible to estimate different response relationships at low and high doses (i.e. no symmetry around an inflection point)
+```
+
+model selection function (log-likelihood, AIC).
+```{r}
+
+#creates the function "model.stats" that will determine the AIC and Loglikhood for each isolate individually(group_by isolate), input is the model
+model.stats <- function(func.number){ # the () indicate what our input is for this to run. in this case it will be the number for the model in our "func.list" we made in the above chunk. i.e. 1 = LL.2, 2 = LL.3, and so on
+  nested_df <- turcicum_flutriafol_nonegative %>% # dataset this function will run on
+    group_by(isolatexbatch) %>% # testing each isolate x batch interaction sperately
+    nest() %>% # nesting the datafrom to mutate
+    mutate(drc = map(data, ~ drm(turcicum_flutriafol_nonegative$relative_growth*100 ~ turcicum_flutriafol_nonegative$ppm, fct = func.list[[func.number]], data = .))) #running the model we select from our function list on the data. a different number will run a different model, but dont change anything in this function. we will use it later to run each model
+  
+  stats <- map(nested_df$drc, ~data.frame(loglik = logLik(.x), 
+                                          aic = AIC(.x))) %>%
+                                          do.call(rbind.data.frame, .) # gather the log-likelihood and Aikoike information criterion for each isolate x batch interaction with the model
+  
+  stats$model <- func.list[[func.number]]$name # adding the model name to each aic and loglik score
+  stats$isolatexbatch <- unique(turcicum_flutriafol_nonegative$isolatexbatch) # adding our unique isolate x batch dientifier so we know which model is the best for each isolate
+  
+  return(stats) # returning this stats data frame for the model selected
+}
+
+```
+
+```{r}
+ET20IA1.5_only <- turcicum_flutriafol_nonegative %>%
+                  subset(., isolatexbatch == "ET20IA1.5") # nothing looks too weird, some hormesis then drastic growth drop off before no growth at 1, 10, and 100 ppm.... not sure whats up...
+
+```
+
+runs function according to that model number and outputs it in df 
+```{r}
+#LL2 <- model.stats(1) # running "model.stats" using the LL.2 model, throws an error on the first isolate, likely not good for hormetic data
+LL3 <- model.stats(2) # running "model.stats" using the LL3 model
+LL4 <- model.stats(3) # running "model.stats" using the LL4 model
+#BC.4 <- model.stats(4) # running "model.stats" using the BC.4 model, throwing an error now that we have removed some isolates with weird growth
+#CRS.4c <- model.stats(5) # running "model.stats" using the CRS.4c model, this will throw an error. likely not a good model for our data
+W2.4 <- model.stats(6) # running "model.stats" using the W2.4 model
+
+all.together <- rbind.data.frame(LL3,LL4,W2.4) # CRS.4c, LL2,BC.4,
+
+
+min.aic <- all.together %>%
+  group_by(isolatexbatch) %>% 
+  nest() %>% 
+  mutate(best.model = map(data, ~.$model[which.min(.$aic)])) 
+View(min.aic) #LL.4 for all included in this analysis
+
+max.LL <- all.together %>%
+  group_by(isolatexbatch) %>% 
+  nest() %>% 
+  mutate(best.model = map(data, ~.$model[which.max(.$loglik)])) 
+View(max.LL) #LL.4 again
+```
+
+Lets just verify this using a different method that also has a plot we can visualize the model fit with.
+```{r}
+#LL.2
+LL.2_modelfit<-drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = LL.2(),type="continuous")
+modelFit(LL.2_modelfit)
+summary(LL.2_modelfit)
+LL.2_plot <- plot(LL.2_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="LL.2 Model")
+
+# LL.3
+LL.3_modelfit<-drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = LL.3(),type="continuous")
+modelFit(LL.3_modelfit)
+summary(LL.3_modelfit)
+LL.3_plot <- plot(LL.3_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="LL.3 Model")
+
+# LL.4
+LL.4a_modelfit<-drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = LL.4(),type="continuous")
+modelFit(LL.4a_modelfit)
+summary(LL.4a_modelfit)
+LL.4_plot <- plot(LL.4a_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="LL.4 Model")
+
+#BC.4
+BC.4_modelfit <- drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = BC.4(),type="continuous")
+modelFit(BC.4_modelfit)
+summary(BC.4_modelfit)
+BC.4_plot <- plot(BC.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="BC.4 Model")
+
+#CRS.4c, convergence will fail. not a good model for our data
+#CRS.4c_modelfit <- drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = CRS.4c(),type="continuous")
+#modelFit(CRS.4c_modelfit)
+#summary(CRS.4c_modelfit)
+#CRS.4c_plot <- plot(CRS.4c_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="CRS.4c Model")
+
+#W2.4
+W2.4_modelfit <- drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = W2.4(),type="continuous")
+modelFit(W2.4_modelfit)
+summary(W2.4_modelfit)
+W2.4_plot <- plot(W2.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="W2.4 Model")
+
+# all plots together or a quick view
+jpeg("all models together.jpg", width = 480, height = 240)
+par(mfrow = c(2, 3))
+plot(LL.2_modelfit,xlab="",ylab="relative growth", main="LL.2 Model")
+plot(LL.3_modelfit,xlab="",ylab="", main="LL.3 Model")
+plot(LL.4a_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="", main="LL.4 Model")
+plot(BC.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="BC.4 Model")
+plot(W2.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="", main="W2.4 Model")
+dev.off()
+# visually, we can see that LL.3, BC.4, and W2.4 parameter models all fit well, but only the BC.4 model was able to detect and account for the slight hormesis we have in some isolates. This backs up the statistical testing we have already done, that BC.4 is likely our best model choice of those tested.
+```
+Removing a couple more isolates that have some odd growth to them, we will look at all isolates which were removed later
+```{r}
+#turcicum_flutriafol_nonegative <- turcicum_flutriafol_nonegative %>%
+ # filter(isolate!="ET20IN65") %>% # this isolate has some odd things going on, look into it
+  #filter(isolate!="ET20MS4") # this isolate has some odd things going on, look into it
+
+```
+
+drm.func <- function(x) {
+  tryCatch(drm(as.numeric(relative_growth)*100 ~ as.numeric(ppm), 
+          fct = W2.4(fixed = c(1, NA, 1, NA)), 
+          type = "continuous",
+          data = .x), error=function(e){FALSE}) %>%
+    base::isFALSE()
+} #
+
+
+EC50 calculations using the BC.4 model selected from above
+```{r}
+turcicum_flutriafol_nonegative # data set for reference
+
+
+drm.func <- function(x) {
+  try(drm(relative_growth*100 ~ ppm, 
+          fct = LL.4(), 
+          type = "continuous",
+          data = x)) 
+} # makes the funciton "drm.func" that will run the LL.4 model across our isolates to calculate the EC50
+
+
+
+EC50.try <- turcicum_flutriafol_nonegative %>%
+  group_by(isolatexbatch) %>% 
+  nest() %>%
+  mutate(drmod = map(data, drm.func)) %>%
+  mutate(class.mod = map(drmod, class)) %>%
+  unnest(class.mod) 
+
+EC50.final_LL4 <- subset(EC50.try, class.mod != "try-error")
+EC50.failed_LL4 <- subset(EC50.try, class.mod == "try-error")
+
+ED.func_absolute <- function(x) {
+  estimate <- try(data.frame(ED(x, type = "absolute", respLev = 0.50, display = FALSE)))
+  EC50 <- try(estimate[[1]]) 
+  return(EC50)
+  
+}
+
+ED.func_relative <- function(x) {
+  estimate <- try(data.frame(ED(x, type = "relative", respLev = 0.50, display = FALSE)))
+  EC50 <- try(estimate[[1]]) 
+  return(EC50)
+  
+}
+
+Absolute.EC50 <- EC50.final_LL4 %>%
+  mutate(Absolute.EC50.estimate = map(drmod, ED.func_absolute)) %>%
+  unnest(Absolute.EC50.estimate) %>%
+  select(isolatexbatch, Absolute.EC50.estimate)
+
+Relative.EC50 <- EC50.final_LL4 %>%
+  mutate(Relative.EC50.estimate = map(drmod, ED.func_relative)) %>%
+  unnest(Relative.EC50.estimate) %>%
+  select(isolatexbatch, Relative.EC50.estimate)
+
+Relative_and_Absolute_EC50 <- merge(Absolute.EC50, Relative.EC50, by="isolatexbatch")
+
+Relative_and_Absolute_EC50 # final dataset of Absolute and Relative EC50's. This includes everything except the isolates which were noticalby resistant or had very odd growth curves. Maybe we can just discuss those in the discussion, or chat about what we want to do about them later.
+
+```
+
+
