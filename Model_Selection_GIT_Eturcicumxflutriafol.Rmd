@@ -2,30 +2,25 @@
 title: "E. turcicum x flutriafol model selection and analysis"
 author: "Austin McCoy"
 date: "1/11/2023"
-output: html_document
+output: 
+  html_document:
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
-
-
-
-
-
 # These scripts were originally made by Dr. Mikaela Breunig and Dr. Zachary Noel for use in a Fusarium x Adepidyn fungicide sensitivity study. Here, we are using these scripts to determine the best model choice for a Exserohilum turcicum (Syn = Setosphaeria turcicum) and flutriafol fungicide study
 
-##Model Selection Script for Baseline Sensitivity of Pydiflumetofen for MYCELIAL GROWTH data
 
-```{r}
+```{r, include=FALSE}
 rm(list = ls(all=TRUE)) 
 options(scipen = 999) 
 ```
 
-function to check, then load any packages that we desire
-```{r, eval=FALSE}
+function to load any packages that we desire. This is hidden in the .html file, but is present within the .Rmd file.
+```{r, eval=TRUE, warning=FALSE, message=FALSE, include=FALSE}
 
 packages <- c("broom","stringr", "tidyverse","ggplot2", "drc","lattice","car", "lme4", "lsmeans", "plyr", "plotrix", "knitr", "ggplot2", "lmtest", "lmerTest", "Rmisc", "gridExtra", "plotly", "webshot", "ggpmisc", "ggsci","scales", "readxl")
 
@@ -51,7 +46,7 @@ raw_data_long$isolate <- paste0('ET', raw_data_long$isolate) #adding the prefix 
 raw_data_long # here is the new data structure and isolate names
 ```
 
-Loading in the data
+Checking how many unique isolates were tested, irrespective of how many times they were tested
 ```{r}
 
 IsolateData<-unique(raw_data_long$isolate) # 81 unique isolates, just figuring out how many isolates were tested, this does not show how many times each was tested
@@ -61,8 +56,8 @@ IsolateData
 
 ```
 
-process data to go from raw diameters to a relative growth for each isolate
-we are assuming that the plug diameter has already been subtracted from the growth of each isolate as there are 0's in the dataset already
+Processing data to go from raw diameters to a relative growth for each isolate
+we are assuming that the plug diameter has already been subtracted from the growth of each isolate as there are 0's in the dataset already at higher concentrations
 ```{r}
 turcicum_flutriafol <- raw_data_long %>% # dataset we are using
   group_by(isolate, batch) %>% # grouping them by isolate and batch tested, so each instance an isolate was tested will be summarised here
@@ -70,6 +65,7 @@ turcicum_flutriafol <- raw_data_long %>% # dataset we are using
   mutate(relative_growth=round(diameter/avgC, digits=3)) # gives us the relative growth (relative to the 0ppm control) of each isolate, relative to the 0ppm control, down to the 3rd decimal point. Rounding to 3 decimal points was needed so that EC50 calculations could converge later on, prior there were 10-20 decimal points of data and the models could not converge
 ```
 
+This may be a relic from when when i started, consider removing
 ```{r}
 turcicum_flutriafol[turcicum_flutriafol <0] <- 0 ## removing negative relative growth values and replacing them with 0
 
@@ -81,8 +77,9 @@ turcicum_flutriafol
 
 ```
 
-dose response curve
-```{r}
+Crude dose response curves for each isolate. Getting an idea how the relative growth data looks
+
+```{r, fig.asp=0.8, fig.width=20, out.width="100%", dpi=600}
 #### Crude Dose Response Curves #####
 
 #turcicum_flutriafol$relative_growth <- as.numeric(turcicum_flutriafol$relative_growth)
@@ -119,12 +116,12 @@ crude_drc_etrucicum <- ggplot(turcicum_flutriafol,aes(x = as.factor(ppm), y = re
 crude_drc_etrucicum # this will be hard to see, so use the line of code below to save this document in high-resolution to your working directory
 
 # you can use this next line to save this figure to your project directory (usually the folder that contains the .rmd and project R files)
-ggsave("crude dose response curves E.turcicum.png", plot=crude_drc_etrucicum, width=20, height=16, dpi = 600)
+#ggsave("crude dose response curves E.turcicum.png", plot=crude_drc_etrucicum, width=20, height=16, dpi = 600)
 
 ```
 
-# It looks like we have 4 isolates which were notably resistant and we will likely not be able to determine an EC50 for them, or will need to use a significantly different model to do so. Here we will remove those isolate from the dataset for now
 
+It looks like we have 4 isolates which were notably resistant and we will likely not be able to determine an EC50 for them, or will need to use a significantly different model to do so. Here we will remove those isolate from the dataset for now
 ```{r}
 # These isolates were notably resistant, or have some odd crude dose response curves, so we are removing them for now so they dont skew model testing for the other isolates
 turcicum_flutriafol_nonegative <- turcicum_flutriafol %>%
@@ -140,7 +137,6 @@ turcicum_flutriafol_nonegative <- turcicum_flutriafol %>%
 
 ```
 
-Make a list of models to test here
 
 We tested 3 different log-logistic models and 3 hormetic models on this dataset to find the best fit for these isolate x fungicide interactions. Below is information on each model tested:
 ```{r}
@@ -184,11 +180,6 @@ model.stats <- function(func.number){ # the () indicate what our input is for th
 
 ```
 
-```{r}
-ET20IA1.5_only <- turcicum_flutriafol_nonegative %>%
-                  subset(., isolatexbatch == "ET20IA1.5") # nothing looks too weird, some hormesis then drastic growth drop off before no growth at 1, 10, and 100 ppm.... not sure whats up...
-
-```
 
 runs function according to that model number and outputs it in df 
 ```{r}
@@ -262,33 +253,23 @@ plot(LL.4a_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="", main="LL.4 M
 plot(BC.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="BC.4 Model")
 plot(W2.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="", main="W2.4 Model")
 dev.off()
-# visually, we can see that LL.3, BC.4, and W2.4 parameter models all fit well, but only the BC.4 model was able to detect and account for the slight hormesis we have in some isolates. This backs up the statistical testing we have already done, that BC.4 is likely our best model choice of those tested.
+# visually, we can see that LL.3, LL.4, BC.4, and W2.4 parameter models all fit well, but the LL.4 and W2.4 model had nearly identical model fits for this data.
 ```
-Removing a couple more isolates that have some odd growth to them, we will look at all isolates which were removed later
+
+One more way to test model fit, still showing LL4, W2.4, and BC.4 models are all around the same in terms of fit. Since Ive done everythin in LL.4 we are good, but maybe W2.4 just to compare.
 ```{r}
-#turcicum_flutriafol_nonegative <- turcicum_flutriafol_nonegative %>%
- # filter(isolate!="ET20IN65") %>% # this isolate has some odd things going on, look into it
-  #filter(isolate!="ET20MS4") # this isolate has some odd things going on, look into it
+mselect(LL.2_modelfit, func.list)
 
 ```
 
-drm.func <- function(x) {
-  tryCatch(drm(as.numeric(relative_growth)*100 ~ as.numeric(ppm), 
-          fct = W2.4(fixed = c(1, NA, 1, NA)), 
-          type = "continuous",
-          data = .x), error=function(e){FALSE}) %>%
-    base::isFALSE()
-} #
-
-
-EC50 calculations using the BC.4 model selected from above
+EC50 calculations using the LL.4 model selected from above
 ```{r}
 turcicum_flutriafol_nonegative # data set for reference
 
 
 drm.func <- function(x) {
   try(drm(relative_growth*100 ~ ppm, 
-          fct = LL.4(), 
+          fct = W2.4(), 
           type = "continuous",
           data = x)) 
 } # makes the funciton "drm.func" that will run the LL.4 model across our isolates to calculate the EC50
@@ -331,8 +312,224 @@ Relative.EC50 <- EC50.final_LL4 %>%
 
 Relative_and_Absolute_EC50 <- merge(Absolute.EC50, Relative.EC50, by="isolatexbatch")
 
-Relative_and_Absolute_EC50 # final dataset of Absolute and Relative EC50's. This includes everything except the isolates which were noticalby resistant or had very odd growth curves. Maybe we can just discuss those in the discussion, or chat about what we want to do about them later.
+pander::pander(Relative_and_Absolute_EC50) # final dataset of Absolute and Relative EC50's. This includes everything except the isolates which were noticalby resistant or had very odd growth curves. Maybe we can just discuss those in the discussion, or chat about what we want to do about them later.
+
+#write_csv(Relative_and_Absolute_EC50, "LL4 relative and aboslute ec50 eturcium x flutriafol_agm.csv") # you can output this data here to csv, or to excel using the write.xlsx() function from the package "openxlsx".
 
 ```
 
+Comparing EC50 we calculated to that which was calculated with the UKY method prior. Checking what we did
+```{r}
+EC50_data_long <- data_long # making a dataset that is just the isolatexbatch, state, rep and UKY calculated EC50 columns from the original data
 
+EC50_data_long$isolate <- paste0('ET', EC50_data_long$isolate) # adding Et prefix to our isolate names
+
+EC50_data_long$isolatexbatch <- interaction(EC50_data_long$isolate, EC50_data_long$batch, drop = TRUE) # making that isolatexbatch column for unique test identifier
+
+EC50_data_long$ppm <- gsub(pattern = " ug/ml", replacement = "", x = EC50_data_long$ppm) # getting rid of " ug/ml" suffix, so that data will be able to read as numeric. important for EC50 calculations
+
+EC50_data_UKY <- select(EC50_data_long, isolatexbatch, state, rep, EC50) # removing the EC50 column from this long data set, we will calculate new ones further down with a model that works best for the isolates fungicide x growth interaction
+
+final_EC50_data_UKY <- EC50_data_UKY %>%
+  group_by(isolatexbatch) %>% # grouping by unique isolatexbatch identifier
+  mutate(mean_EC50 = mean(EC50)) %>% # making a column of mean EC50 values for each isolatexbatch entry
+  select(., select = -c(EC50, rep)) %>% #removing hte EC50 and rep columns
+  filter(! duplicated(isolatexbatch)) # removing duplicated results from the dataframe
+
+myEC50_and_UKYEC50_commpare <- merge(Relative_and_Absolute_EC50, final_EC50_data_UKY, by="isolatexbatch", no.dups = TRUE) # combining our data set with relate, and absolute EC50 calculations with the EC50 values determined by UKY.
+
+```
+
+Broad comparison of data EC50 Ranges for each dataset, summary metrics, etc.
+```{r}
+EC50s_only <- myEC50_and_UKYEC50_commpare %>%
+  select(., select = -c(isolatexbatch, state))
+
+pander::pander(summary(EC50s_only))
+
+```
+
+Same thing but by state now
+```{r}
+EC50s_by_state <- myEC50_and_UKYEC50_commpare %>%
+  filter(!is.na(Absolute.EC50.estimate))%>%
+  select(., select = -c(isolatexbatch)) %>%
+  group_by(state) %>%
+  mutate(Mean_abs_ec50 = mean(Absolute.EC50.estimate),
+         sd_abs_ec50 = sd(Absolute.EC50.estimate),
+         Mean_rel_ec50 = mean(Relative.EC50.estimate),
+         sd_rel_ec50 = sd(Relative.EC50.estimate),
+         Mean_UKY_ec50 = mean(mean_EC50),
+         sd_UKY_ec50 = sd(mean_EC50),
+         N_tested = n()) %>%
+  select(., select = -c(Absolute.EC50.estimate, Relative.EC50.estimate, mean_EC50)) %>%
+  filter(! duplicated(state)) %>%
+  select(state, N_tested, Mean_abs_ec50, sd_abs_ec50, Mean_rel_ec50, sd_rel_ec50, Mean_UKY_ec50, sd_UKY_ec50)
+
+
+pander::pander(EC50s_by_state)
+```
+
+Distribution Histograms for EC50 values
+```{r, fig.asp=0.8, fig.width=20, out.width="100%", dpi=600}
+# LL4 Absolute EC50 distribution
+LL4_abs_EC50_hist <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=Absolute.EC50.estimate, fill=state)) +
+  geom_histogram(binwidth = 0.5) + #everything grouped within 0.5 ppm EC50 of another
+  theme_gray() +
+  theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
+        axis.text.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.x = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.line.x = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        axis.line.y = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        legend.text = element_text(size = 10, face = "bold", family = "serif"),
+        legend.key = element_blank(),
+        legend.title = element_text(size = 10, face="bold", family = "serif"),
+        legend.position = "right",
+        strip.text.x = element_text(size = 10, face = "bold", family = "serif"),
+        title = element_text(size = 16, family = "serif")) +
+  scale_x_continuous(breaks=c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70)) +
+  ggtitle("LL.4 model Absolute EC50 distribution") +
+  xlab("ppm Flutriafol ") + ylab("Frequency")
+
+#LL4_abs_EC50_hist # there will be a warning on 9 "non-finite values" for the Absolute EC50. These are nine isolates for which we could not calculate and Absolute EC50 value for, we will likely be able to calculate a Relative EC50 (predictive) value for these isolate though. No Absolute EC50 value means that there was no way to determine what concentration would produce 50% growth inhibition, likely somewhat resistant to the compound, therefore we have to extrapolate what the concentration value would be through relative EC50 calculations.
+
+LL4_rel_EC50_hist <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=Relative.EC50.estimate, fill=state)) +
+  geom_histogram(binwidth = 0.5) + #everything grouped within 0.5 ppm EC50 of another
+  theme_gray() +
+  theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
+        axis.text.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.x = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.line.x = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        axis.line.y = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        legend.text = element_text(size = 10, face = "bold", family = "serif"),
+        legend.key = element_blank(),
+        legend.title = element_text(size = 10, face="bold", family = "serif"),
+        legend.position = "right",
+        strip.text.x = element_text(size = 10, face = "bold", family = "serif"),
+        title = element_text(size = 16, family = "serif")) +
+  scale_x_continuous(breaks=c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70)) +
+  ggtitle("LL.4 model Relative EC50 distribution") +
+  xlab("ppm Flutriafol ") + ylab("Frequency")
+
+#LL4_rel_EC50_hist
+
+UKY_EC50_hist <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=mean_EC50, fill=state)) +
+  geom_histogram(binwidth = 0.5) + #everything grouped within 0.5 ppm EC50 of another
+  theme_gray() +
+  theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
+        axis.text.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.x = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.line.x = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        axis.line.y = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        legend.text = element_text(size = 10, face = "bold", family = "serif"),
+        legend.key = element_blank(),
+        legend.title = element_text(size = 10, face="bold", family = "serif"),
+        legend.position = "right",
+        strip.text.x = element_text(size = 10, face = "bold", family = "serif"),
+        title = element_text(size = 16, family = "serif")) +
+  scale_x_continuous(breaks=c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70)) +
+  ggtitle("UKY EC50 estimate EC50 distribution") +
+  xlab("ppm Flutriafol ") + ylab("Frequency")
+
+#UKY_EC50_hist
+
+library(cowplot)
+
+all_together <- plot_grid(LL4_abs_EC50_hist, LL4_rel_EC50_hist, UKY_EC50_hist)
+
+all_together
+
+#ggsave("plots with all EC50 estimates together, MSU and KYU.png", plot = all_together, width = 20, height = 16, dpi = 600)
+
+```
+
+Comparison of states, boxplots.
+```{r, fig.asp=0.8, fig.width=20, out.width="100%", dpi=600}
+Absolute_ec50_box <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=state, y=Absolute.EC50.estimate, fill = state)) +
+  geom_boxplot() +
+  coord_flip() +
+theme_gray() +
+  theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
+        axis.text.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.x = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.line.x = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        axis.line.y = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        legend.text = element_text(size = 10, face = "bold", family = "serif"),
+        legend.key = element_blank(),
+        legend.title = element_text(size = 10, face="bold", family = "serif"),
+        legend.position = "right",
+        strip.text.x = element_text(size = 10, face = "bold", family = "serif"),
+        title = element_text(size = 16, family = "serif")) +
+  ggtitle("LL4 Absolute EC50 estimate EC50 distribution") +
+  xlab("State ") + ylab("ppm Flutriafol")
+
+#Absolute_ec50_box
+
+Relative_ec50_box <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=state, y=Relative.EC50.estimate, fill = state)) +
+  geom_boxplot() +
+  coord_flip() +
+theme_gray() +
+  theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
+        axis.text.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.x = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.line.x = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        axis.line.y = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        legend.text = element_text(size = 10, face = "bold", family = "serif"),
+        legend.key = element_blank(),
+        legend.title = element_text(size = 10, face="bold", family = "serif"),
+        legend.position = "right",
+        strip.text.x = element_text(size = 10, face = "bold", family = "serif"),
+        title = element_text(size = 16, family = "serif")) +
+  ggtitle("LL4 Relative EC50 estimate EC50 distribution") +
+  xlab("State ") + ylab("ppm Flutriafol")
+
+#Relative_ec50_box
+
+UKY_ec50_box <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=state, y=mean_EC50, fill = state)) +
+  geom_boxplot() +
+  coord_flip() +
+theme_gray() +
+  theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
+        axis.text.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.x = element_text(size = 20, face = "bold", family = "serif"),
+        axis.title.y = element_text(size = 20, face = "bold", family = "serif"),
+        axis.line.x = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        axis.line.y = element_line(colour = 'gray', size=0.5, linetype='solid'),
+        legend.text = element_text(size = 10, face = "bold", family = "serif"),
+        legend.key = element_blank(),
+        legend.title = element_text(size = 10, face="bold", family = "serif"),
+        legend.position = "right",
+        strip.text.x = element_text(size = 10, face = "bold", family = "serif"),
+        title = element_text(size = 16, family = "serif")) +
+  ggtitle("UKY EC50 estimate EC50 distribution") +
+  xlab("State ") + ylab("ppm Flutriafol")
+
+#UKY_ec50_box
+
+all_together_box <- plot_grid(Absolute_ec50_box, Relative_ec50_box, UKY_ec50_box)
+
+all_together_box
+
+#ggsave("boxplotsplots with all EC50 estimates together, MSU and KYU.png", plot = all_together_box, width = 20, height = 16, dpi = 600)
+```
+
+T-test between EC50 estimate methods
+```{r}
+# Absolute vs Relative EC50, there will be significant differences here as expected
+t.test(myEC50_and_UKYEC50_commpare$Absolute.EC50.estimate, myEC50_and_UKYEC50_commpare$Relative.EC50.estimate)
+
+# Absolute vs UKY EC50 estimation method, significant differences as expected
+t.test(myEC50_and_UKYEC50_commpare$Absolute.EC50.estimate, myEC50_and_UKYEC50_commpare$mean_EC50)
+
+# Relative vs UKY EC50 estimation method, no significant differences. These methods peroduced similar results.
+t.test(myEC50_and_UKYEC50_commpare$Relative.EC50.estimate, myEC50_and_UKYEC50_commpare$mean_EC50)
+
+```
+
+### The method used by UKY to estimate their EC50 values resulted in non-significant differences between those values and the Relative EC50 values calculated here. 
+  
