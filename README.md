@@ -7,5 +7,7 @@ The current code is well annotated for analysis/EC50 calculation. Less so for gr
 
 The use of M. Breunig and Z. Noels original code has been cited within the respective manuscript (Breunig and Chilvers 2021). Here we used this code to determine the best model for EC50 calculations and added more code for visualization, testing, data wrangling, etc.
 
-### The code for model selection was forked from the below github and was originally used for _Fusarium_ spp. and Pydiflumetofen testing by Mikaela Breunig
+### The code for bulk model selection was forked from the below github and was originally used for _Fusarium_ spp. and Pydiflumetofen testing by Dr. Mikaela Breunig
+https://github.com/mikbreunig/Pydiflumetofen
+
 Based off of code from the study: Breunig, M., and Chilvers, M.I. (2021) Baseline sensitivity of _Fusarium graminearum_ from wheat, corn, drybean and soybean to pydiflumetofen in Michigan, USA. Crop Protection Journal 140:105419
