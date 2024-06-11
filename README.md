@@ -1,5 +1,5 @@
 # Sensitivity of the causal agent of northern leaf blight of corn, _Exserohilum turcicum_, to the demethylase inhibiting fungicide flutriafol
-Nolan R. Anderson* & Austin G. McCoy*, Cristina Castellano, Martin I. Chilvers, Eric ALinger, Tom W. Allen, Kaitlyn Bissonnette, Drake Copeland, Nick Hustedde, Tamra A. Jackson-Ziems, Nathan Kleczewski, Christopher Leon, John Mueller, Trey Price, Richard Raid, Alison E. Robertson, Edward J. Sikora, Darcy E. P. Telenko, matthew Wiggins, Kiersten Wise. _Plant Health Progress_. 2024
+Nolan R. Anderson* & Austin G. McCoy*, Cristina Castellano, Martin I. Chilvers, Eric ALinger, Tom W. Allen, Kaitlyn Bissonnette, Drake Copeland, Nick Hustedde, Tamra A. Jackson-Ziems, Nathan Kleczewski, Christopher Leon, John Mueller, Trey Price, Richard Raid, Alison E. Robertson, Edward J. Sikora, Darcy E. P. Telenko, matthew Wiggins, Kiersten Wise. _Plant Health Progress_. 2024 https://apsjournals.apsnet.org/doi/10.1094/PHP-11-23-0098-RS
 * these authors contributed equally to this manuscript
 
 For the current study, you will only need to interact with the file "Model_Selection_GIT_Eturcicumxflutriafol.R" and the associated raw data file "E. turcicum flutriafol sensitivity data for Austin_batch_rep.xlsx"
