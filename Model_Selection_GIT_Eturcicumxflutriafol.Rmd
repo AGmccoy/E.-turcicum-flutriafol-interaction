@@ -24,10 +24,11 @@ function to load any packages that we desire. This is hidden in the .html file, 
 
 packages <- c("broom","stringr", "tidyverse","ggplot2", "drc","lattice","car", "lme4", "lsmeans", "plyr", "plotrix", "knitr", "ggplot2", "lmtest", "lmerTest", "Rmisc", "gridExtra", "plotly", "webshot", "ggpmisc", "ggsci","scales", "readxl", "cowplot", "openxlsx")
 
-lapply(packages, library, character.only=TRUE)
+lapply(packages, library, character.only=TRUE) #lsmeans and Rmisc may need download from CRAN
 
-#library(cowplot)
-#library(openxlsx)
+#######If there are problems installing these packages from the above code #####
+#install.packages('lsmeans', repos='http://cran.us.r-project.org', dependencies = TRUE)
+#install.packages('Rmisc', repos='http://cran.us.r-project.org', dependencies = TRUE)
 
 ```
 
@@ -85,6 +86,8 @@ turcicum_flutriafol <- raw_data_long %>% # dataset we are using
   mutate(relative_growth=round(diameter/avgC, digits=3)) # gives us the relative growth (relative to the 0ppm control) of each isolate, relative to the 0ppm control, down to the 3rd decimal point. Rounding to 3 decimal points was needed so that EC50 calculations could converge later on, prior there were 10-20 decimal points of data and the models could not converge
 
 turcicum_flutriafol
+
+#write.xlsx(turcicum_flutriafol, "Flutriafol relative growth data.xlsx")
 ```
 
 
@@ -234,6 +237,7 @@ model.stats <- function(func.number){ # the () indicate what our input is for th
   return(stats) # returning this stats data frame for the model selected
 }
 
+
 ```
 
 
@@ -265,37 +269,37 @@ View(max.LL) #LL.4 again
 Lets just verify this using a different method that also has a plot we can visualize the model fit with.
 ```{r}
 #LL.2
-LL.2_modelfit<-drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = LL.2(),type="continuous")
+LL.2_modelfit<-drm(formula = turcicum_flutriafol$relative_growth ~ turcicum_flutriafol$ppm, fct = LL.2(),type="continuous")
 modelFit(LL.2_modelfit)
 summary(LL.2_modelfit)
 LL.2_plot <- plot(LL.2_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="LL.2 Model")
 
 # LL.3
-LL.3_modelfit<-drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = LL.3(),type="continuous")
+LL.3_modelfit<-drm(formula = turcicum_flutriafol$relative_growth ~ turcicum_flutriafol$ppm, fct = LL.3(),type="continuous")
 modelFit(LL.3_modelfit)
 summary(LL.3_modelfit)
 LL.3_plot <- plot(LL.3_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="LL.3 Model")
 
 # LL.4
-LL.4a_modelfit<-drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = LL.4(),type="continuous")
+LL.4a_modelfit<-drm(formula = turcicum_flutriafol$relative_growth ~ turcicum_flutriafol$ppm, fct = LL.4(),type="continuous")
 modelFit(LL.4a_modelfit)
 summary(LL.4a_modelfit)
 LL.4_plot <- plot(LL.4a_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="LL.4 Model")
 
 #BC.4
-BC.4_modelfit <- drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = BC.4(),type="continuous")
+BC.4_modelfit <- drm(formula = turcicum_flutriafol$relative_growth ~ turcicum_flutriafol$ppm, fct = BC.4(),type="continuous")
 modelFit(BC.4_modelfit)
 summary(BC.4_modelfit)
 BC.4_plot <- plot(BC.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="BC.4 Model")
 
 #CRS.4c, convergence will fail. not a good model for our data
-#CRS.4c_modelfit <- drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = CRS.4c(),type="continuous")
+#CRS.4c_modelfit <- drm(formula = turcicum_flutriafol$relative_growth ~ turcicum_flutriafol$ppm, fct = CRS.4c(),type="continuous")
 #modelFit(CRS.4c_modelfit)
 #summary(CRS.4c_modelfit)
 #CRS.4c_plot <- plot(CRS.4c_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="CRS.4c Model")
 
 #W2.4
-W2.4_modelfit <- drm(formula = turcicum_flutriafol_nonegative$relative_growth ~ turcicum_flutriafol_nonegative$ppm, fct = W2.4(),type="continuous")
+W2.4_modelfit <- drm(formula = turcicum_flutriafol$relative_growth ~ turcicum_flutriafol$ppm, fct = W2.4(),type="continuous")
 modelFit(W2.4_modelfit)
 summary(W2.4_modelfit)
 W2.4_plot <- plot(W2.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="relative growth", main="W2.4 Model")
@@ -314,6 +318,8 @@ W2.4_plot <- plot(W2.4_modelfit,xlab="Flutriafol concentration (mg/L)",ylab="rel
 
 One more way to test model fit, still showing LL4, W2.4, and BC.4 models are all around the same in terms of fit. Since Ive done everythin in LL.4 we are good, but maybe W2.4 just to compare.
 ```{r}
+mselect(LL.2_modelfit, func.list, icfct=AIC)
+mselect(LL.2_modelfit, func.list, icfct=BIC)
 mselect(LL.2_modelfit, func.list)
 
 ```
@@ -514,19 +520,20 @@ pander::pander(summary(EC50s_only))
 Same thing but by state now
 ```{r, eval=FALSE}
 EC50s_by_state <- myEC50_and_UKYEC50_commpare %>%
-  filter(!is.na(Absolute.EC50.estimate))%>%
+  filter(!is.na(Absolute.EC50.estimate_ll4))%>%
   select(., select = -c(isolatexbatch)) %>%
   group_by(state) %>%
-  mutate(Mean_abs_ec50 = mean(Absolute.EC50.estimate), # not working because these now have either a "_ll4" or "w24" suffix
-         sd_abs_ec50 = sd(Absolute.EC50.estimate),
-         Mean_rel_ec50 = mean(Relative.EC50.estimate),
-         sd_rel_ec50 = sd(Relative.EC50.estimate),
+  mutate(Mean_abs_ec50_ll4 = mean(Absolute.EC50.estimate_ll4), # not working because these now have either a "_ll4" or "w24" suffix
+         sd_abs_ec50_ll4 = sd(Absolute.EC50.estimate_ll4),
+         Mean_rel_ec50_ll4 = mean(Relative.EC50.estimate_ll4),
+         sd_rel_ec50_ll4 = sd(Relative.EC50.estimate_ll4),
+         
          Mean_UKY_ec50 = mean(mean_EC50),
          sd_UKY_ec50 = sd(mean_EC50),
          N_tested = n()) %>%
-  select(., select = -c(Absolute.EC50.estimate, Relative.EC50.estimate, mean_EC50)) %>%
+  select(., select = -c(Absolute.EC50.estimate_ll4, Absolute.EC50.estimate_w24, Relative.EC50.estimate_w24, Relative.EC50.estimate_ll4,  mean_EC50)) %>%
   filter(! duplicated(state)) %>%
-  select(state, N_tested, Mean_abs_ec50, sd_abs_ec50, Mean_rel_ec50, sd_rel_ec50, Mean_UKY_ec50, sd_UKY_ec50)
+  select(state, N_tested, Mean_abs_ec50_ll4, sd_abs_ec50_ll4, Mean_rel_ec50_ll4, sd_rel_ec50_ll4, Mean_UKY_ec50, sd_UKY_ec50)
 
 
 pander::pander(EC50s_by_state)
@@ -614,7 +621,7 @@ myEC50_and_UKYEC50_commpare_summary
 Distribution Histograms for EC50 values
 ```{r, eval=FALSE, fig.asp=0.8, fig.width=20, out.width="100%", dpi=600}
 # LL4 Absolute EC50 distribution
-LL4_abs_EC50_hist <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=Absolute.EC50.estimate, fill=state)) +
+LL4_abs_EC50_hist <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=Absolute.EC50.estimate_ll4, fill=state)) +
   geom_histogram(binwidth = 0.5) + #everything grouped within 0.5 ppm EC50 of another
   theme_gray() +
   theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
@@ -633,9 +640,9 @@ LL4_abs_EC50_hist <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=Absolute.EC50.est
   ggtitle("LL.4 model Absolute EC50 distribution") +
   xlab("ppm Flutriafol ") + ylab("Frequency")
 
-#LL4_abs_EC50_hist # there will be a warning on 9 "non-finite values" for the Absolute EC50. These are nine isolates for which we could not calculate and Absolute EC50 value for, we will likely be able to calculate a Relative EC50 (predictive) value for these isolate though. No Absolute EC50 value means that there was no way to determine what concentration would produce 50% growth inhibition, likely somewhat resistant to the compound, therefore we have to extrapolate what the concentration value would be through relative EC50 calculations.
+LL4_abs_EC50_hist # there will be a warning on 9 "non-finite values" for the Absolute EC50. These are nine isolates for which we could not calculate and Absolute EC50 value for, we will likely be able to calculate a Relative EC50 (predictive) value for these isolate though. No Absolute EC50 value means that there was no way to determine what concentration would produce 50% growth inhibition, likely somewhat resistant to the compound, therefore we have to extrapolate what the concentration value would be through relative EC50 calculations.
 
-LL4_rel_EC50_hist <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=Relative.EC50.estimate, fill=state)) +
+LL4_rel_EC50_hist <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=Relative.EC50.estimate_ll4, fill=state)) +
   geom_histogram(binwidth = 0.5) + #everything grouped within 0.5 ppm EC50 of another
   theme_gray() +
   theme(axis.text.x = element_text(size = 9, face = "bold", angle=45, hjust=1, family = "serif"),
@@ -689,7 +696,7 @@ all_together
 
 Comparison of states, boxplots.
 ```{r, eval=FALSE, fig.asp=0.8, fig.width=20, out.width="100%", dpi=600}
-Absolute_ec50_box <- ggplot(both_models_ec50, aes(x=state, y=Absolute.EC50.estimate_ll4, fill = state)) +
+Absolute_ec50_box <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=state, y=Absolute.EC50.estimate_ll4, fill = state)) +
   geom_boxplot() +
   coord_flip() +
 theme_gray() +
@@ -708,9 +715,9 @@ theme_gray() +
   ggtitle("LL4 Absolute EC50 estimate EC50 distribution") +
   xlab("State ") + ylab("ppm Flutriafol")
 
-#Absolute_ec50_box
+Absolute_ec50_box
 
-Relative_ec50_box <- ggplot(both_models_ec50, aes(x=state, y=Relative.EC50.estimate_ll4, fill = state)) +
+Relative_ec50_box <- ggplot(myEC50_and_UKYEC50_commpare, aes(x=state, y=Relative.EC50.estimate_ll4, fill = state)) +
   geom_boxplot() +
   coord_flip() +
 theme_gray() +
@@ -762,13 +769,13 @@ all_together_box
 T-test between EC50 estimate methods
 ```{r, eval=FALSE}
 # Absolute vs Relative EC50, there will be significant differences here as expected
-t.test(myEC50_and_UKYEC50_commpare$Absolute.EC50.estimate, myEC50_and_UKYEC50_commpare$Relative.EC50.estimate)
+t.test(myEC50_and_UKYEC50_commpare$Absolute.EC50.estimate_ll4, myEC50_and_UKYEC50_commpare$Relative.EC50.estimate_ll4)
 
 # Absolute vs UKY EC50 estimation method, significant differences as expected
-t.test(myEC50_and_UKYEC50_commpare$Absolute.EC50.estimate, myEC50_and_UKYEC50_commpare$mean_EC50)
+t.test(myEC50_and_UKYEC50_commpare$Absolute.EC50.estimate_ll4, myEC50_and_UKYEC50_commpare$mean_EC50)
 
 # Relative vs UKY EC50 estimation method, no significant differences. These methods peroduced similar results.
-t.test(myEC50_and_UKYEC50_commpare$Relative.EC50.estimate, myEC50_and_UKYEC50_commpare$mean_EC50)
+t.test(myEC50_and_UKYEC50_commpare$Relative.EC50.estimate_ll4, myEC50_and_UKYEC50_commpare$mean_EC50)
 
 ```
 
@@ -887,9 +894,9 @@ Relative_ec50_w24_outlier_box #  1 outlier for KY6, 2 outliers for KY8
 ET20KY6_KY8_reproduce_ll4 <- EC50_data_batches %>%
   group_by(Isolate) %>%
   summarize(mean_ll4 = mean(as.numeric(Absolute.EC50.estimate_ll4), na.rm=TRUE),
-            sd_ll4 = sd(as.numeric(Absolute.EC50_ll4), na.rm=TRUE),
-            plus3_stdv_ll4 = mean(as.numeric(Absolute.EC50.estimate_ll4), na.rm=TRUE)+(3*sd(Absolute.EC50_ll4, na.rm=TRUE)),
-            minus3_stdv_ll4 = mean(as.numeric(Absolute.EC50.estimate_ll4), na.rm=TRUE)-(3*sd(Absolute.EC50_ll4)))
+            sd_ll4 = sd(as.numeric(Absolute.EC50.estimate_ll4), na.rm=TRUE),
+            plus3_stdv_ll4 = mean(as.numeric(Absolute.EC50.estimate_ll4), na.rm=TRUE)+(3*sd(Absolute.EC50.estimate_ll4, na.rm=TRUE)),
+            minus3_stdv_ll4 = mean(as.numeric(Absolute.EC50.estimate_ll4), na.rm=TRUE)-(3*sd(Absolute.EC50.estimate_ll4)))
 
 ET20KY8_noNA_reproduce <- wilcox_test(Absolute.EC50.estimate_ll4 ~ isolatexbatch, paired=TRUE, data = ET20KY8_data_noNA)
 
